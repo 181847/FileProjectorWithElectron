@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en" style="width:auto;height:100%">
+<head>
+    <title>
+        FileProjector
+    </title>
+    <style>
+        #divFloatLeft{
+            float: left;
+            width:50%;
+            background: gray;
+        }
+    </style>
+</head>
+<body>
+    <table>
+        <tr>
+            <td>
+                <p id="sourceFolderDropField">拖拽源文件夹至此</p>
+            </td>
+            <td>
+                <p>拖拽目标文件夹至此</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <p id="sourceFolder"></p>
+            </td>
+            <td>
+                <p id="destFolder"></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <ul id="sourceFiles"></ul>
+            </td>
+            <td>
+                <ul id="destFiles"></ul>
+            </td>
+        </tr>
+    </table>
+    <div>
+        <div id='divFloatLeft'>
+        </div>
+        <div id='divFloatLeft'>
+        </div>
+    </div>
+    <!--添加脚本-->
+    <script>
+        const electron              = require("electron");
+        const {ipcRenderer}         = electron;
+        const srcFolderDropField    = document.querySelector("#sourceFolderDropField");
+        const srcFolderTitle        = document.querySelector("#sourceFolder");
+        const srcFiles              = document.querySelector("#sourceFiles");
+
+        document.ondragstart 
+        = document.ondragenter 
+        = document.ondragover 
+        = document.ondragleave 
+        = document.ondrop 
+        = (ev)=>{
+            ev.preventDefault(); 
+            ev.stopPropagation();
+        };
+        srcFolderDropField.ondrop = (ev)=>{            
+            // 检查是否为文件夹
+            let srcPath = ev.dataTransfer.files[0].path;
+            
+            ipcRenderer.send("fileDrop:newSrcFile", srcPath);
+        };
+
+        ipcRenderer.on("fileDrop:addSrcFolder", (e, srcFolderPath)=>{
+            srcFolderTitle.textContent = srcFolderPath;
+            srcFiles.clear();
+        })
+        ipcRenderer.on("fileDrop:addSrcSingleFile", (e, filePath)=>{
+            let listItem = document.createElement("li");
+            listItem.appendChild(document.createTextNode(filePath));
+            srcFiles.appendChild(listItem);
+        })
+        ipcRenderer.on('fileDrop:invalidSrcFolder', (e, srcFolderPath)=>{
+            srcFolderTitle.textContent = "拖拽文件夹失败";
+        })
+
+    </script>
+</body>
+</html>

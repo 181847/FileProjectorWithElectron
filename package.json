@@ -1,0 +1,14 @@
+{
+  "name": "fileprojector",
+  "version": "1.0.0",
+  "description": "Project files in a folder into another folder.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "Yang Liu",
+  "license": "MIT",
+  "dependencies": {
+    "electron": "^1.7.10"
+  }
+}

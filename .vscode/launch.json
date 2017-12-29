@@ -1,0 +1,24 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+
+            "name": "Launch",
+            "type": "node",
+            "request": "launch",
+            //程序启动文件,默认为 "${workspaceRoot}/main.js"
+            "program": "${workspaceRoot}/main.js",
+            "stopOnEntry": false,
+            "args": [],
+            "cwd": "${workspaceRoot}",
+            "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/electron",
+            "runtimeArgs": [
+                ".",
+                "--enable-logging"
+            ],
+            "env": {},
+            //该属性为配置typescript调试,若不需要则设置为false
+            "sourceMaps": true
+        }
+    ]
+}
