@@ -9,6 +9,7 @@
   "author": "Yang Liu",
   "license": "MIT",
   "dependencies": {
-    "electron": "^1.7.10"
+    "electron": "^1.7.10",
+    "gaze": "^1.1.2"
   }
 }
