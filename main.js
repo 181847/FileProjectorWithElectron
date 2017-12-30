@@ -139,7 +139,7 @@ ipcMain.on("fileDrop:newSrcFile", (e, filePath)=>{
             // 发送文件夹添加指令。
             mainWindow.webContents.send("fileDrop:addSrcFolder", filePath);
 
-            fs.watch(filePath, (event, fileName)=>{
+            fs.watch(filePath, {recursive: true}, (event, fileName)=>{
                 FileEventDispatcher(event, path.join(filePath, fileName), {
                     onCreate: (fn)=>{console.log("### 文件创建了：" + fn);},
                     onDelete: (fn)=>{console.log("### 文件被删了：" + fn);},
