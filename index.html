@@ -5,6 +5,14 @@
         FileProjector
     </title>
     <style>
+        #tdDropField{
+            width: 50%;
+            height: 50px;
+            background: orange;
+        }
+        .mainTable{
+            width: 100%;
+        }
         #divFloatLeft{
             float: left;
             width:50%;
@@ -13,12 +21,12 @@
     </style>
 </head>
 <body>
-    <table>
+    <table class="mainTable">
         <tr>
-            <td>
+            <td id="tdDropField">
                 <p id="sourceFolderDropField">拖拽源文件夹至此</p>
             </td>
-            <td>
+            <td id="tdDropField">
                 <p>拖拽目标文件夹至此</p>
             </td>
         </tr>
@@ -39,12 +47,6 @@
             </td>
         </tr>
     </table>
-    <div>
-        <div id='divFloatLeft'>
-        </div>
-        <div id='divFloatLeft'>
-        </div>
-    </div>
     <!--添加脚本-->
     <script>
         const electron              = require("electron");
@@ -71,7 +73,8 @@
 
         ipcRenderer.on("fileDrop:addSrcFolder", (e, srcFolderPath)=>{
             srcFolderTitle.textContent = srcFolderPath;
-            srcFiles.clear();
+            // 清空所有子文件。
+            srcFiles.innerHTML = "";
         })
         ipcRenderer.on("fileDrop:addSrcSingleFile", (e, filePath)=>{
             let listItem = document.createElement("li");
