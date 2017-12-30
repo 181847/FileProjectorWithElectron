@@ -2,8 +2,9 @@
 
 const electron = require('electron');
 const url = require('url');
-const path = require('path')
+const path = require('path');
 const fs = require("fs");
+const gaze = require("gaze");
 
 const {app, BrowserWindow, Menu, ipcMain} = electron;
 
@@ -76,7 +77,25 @@ ipcMain.on("fileDrop:newSrcFile", (e, filePath)=>{
         {
             // 发送文件夹添加指令。
             mainWindow.webContents.send("fileDrop:addSrcFolder", filePath);
-
+            
+            gaze(filePath + "\\*.*", (err, watcher)=>{
+                watcher.on("changed", (fPath)=>{
+                    console.log("文件变化：" + fPath);
+                })
+                watcher.on("added", (fPath)=>{
+                    console.log("文件增加：" + fPath);
+                })
+                watcher.on("deleted", (fPath)=>{
+                    console.log("文件删除：" + fPath);
+                })
+                // watcher.on("all", (event, fPath)=>{
+                //     console.log("文件的任何更改：" + event + fPath);
+                // })
+                watcher.on("error", (error)=>{
+                    console.log("发生了某些错误");
+                })
+            })
+            
             // 发送单独的文件添加指令
             for (var index in files)
             {
