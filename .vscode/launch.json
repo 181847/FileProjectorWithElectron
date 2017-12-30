@@ -18,7 +18,8 @@
             ],
             "env": {},
             //该属性为配置typescript调试,若不需要则设置为false
-            "sourceMaps": true
+            "sourceMaps": true,
+            "outputCapture": "std"
         }
     ]
 }
