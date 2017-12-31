@@ -6,6 +6,10 @@ const path = require('path');
 const fs = require("fs");
 const gaze = require("gaze");
 const myFs = require("./FileOperator.js")
+const RenderFormater = require("./IpcInstrctFormator.js").RenderFormater;
+const EnumTarget = RenderFormater.EnumTarget;
+const EnumOperation = RenderFormater.EnumOperation;
+const fmtInstrct = RenderFormater.fmt;
 
 const {app, BrowserWindow, Menu, ipcMain} = electron;
 
@@ -82,7 +86,7 @@ let fileLockSet = {};
 //     onCreate: ()=>{},
 //     onChange: ()=>{}
 // }
-function FileEventDispatcher(eventFromFS, fileName, callBackS, delayChangeMillisecond = 500){
+function FileEventDispatcher(eventFromFS, fileName, callBackS, delayChangeMillisecond = 1000){
     switch(eventFromFS)
     {
     case "rename":
@@ -128,46 +132,128 @@ function FileEventDispatcher(eventFromFS, fileName, callBackS, delayChangeMillis
     }
 }
 
-// 测试用数据，用于显示触发的文件修改事件计数
-let watchEventCount = 0;
-prevFileWatcher = null;
-ipcMain.on("fileDrop:newSrcFile", (e, filePath)=>{
-    fs.readdir(filePath, (error, files)=>{
-        if (error)
-        {
-            mainWindow.webContents.send("fileDrop:invalidSrcFolder");
-        }
-        else
-        {
-            // 发送文件夹添加指令。
-            mainWindow.webContents.send("fileDrop:addSrcFolder", filePath);
+class Projector{
+    constructor(renderName)
+    {
+        // renderName用于区分不同的Projector。
+        this.m_renderName = renderName;
+        this.m_sourceFolder = "";
+        this.m_destFolder = "";
 
-            // 关闭前一次的监控文件夹。
-            if (prevFileWatcher)
-            {
-                prevFileWatcher.close();
-                prevFileWatcher = null;
+        this.m_sourceWatcher = null;
+        this.m_destWatcher = null;
+
+        ipcMain.on(fmtInstrct(this.m_renderName, EnumTarget.SOURCE, EnumOperation.FOLDER_CHANGE), (err, srcFolderPath)=>{
+            if ( ! err){
+                this.setSourceFolder(srcFolder);
             }
+        })
+    }
 
-            prevFileWatcher = fs.watch(filePath, {recursive: true}, (event, fileName)=>{
-                FileEventDispatcher(event, path.join(filePath, fileName), {
-                    onCreate: (fn)=>{
-                        mainWindow.webContents.send("fileDrop:addSrcSingleFile", path.parse(fn).base);
-                    },
-                    onDelete: (fn)=>{
-                        mainWindow.webContents.send("fileChange:deletSrcSingleFile", path.parse(fn).base);
-                        console.log("### 文件被删了：" + fn);
-                    },
-                    onChange: (fn)=>{console.log("### 文件改变了：" + fn);}
-                }, 1000)
-                //console.log("计数: " + watchEventCount++ + "文件变化，类型：" + event + "  文件：" + fileName);
+    getRenderName(){
+        return this.m_renderName;
+    }// function getRenderName()
+
+
+    // 文件变化事件的进程通信规格
+    // Render:****:[src, dest]:[folderChange, newSingleFile, deleteSingleFile]
+    setSourceFolder(srcFolder){
+        srcFolder = path.resolve(srcFolder);
+        fs.readdir(srcFolder, (err, files)=>{
+            if (err){
+                mainWindow.webContents.send(fmtInstrct(this.m_renderName, 
+                    EnumTarget.SOURCE, EnumOperation.INVALID_FOLDER), srcFolder);
+            } else {
+                // 清除上一次的源文件监控。
+                if (this.m_sourceWatcher){
+                    this.m_sourceWatcher.close();
+                    this.m_sourceWatcher = null;
+                }
+                // 记录新的源文件夹路径。
+                this.m_sourceFolder = srcFolder;
+                // 发送源文件夹更改信息。
+                mainWindow.webcontents.send(fmtInstrct(this.m_renderName,
+                    EnumTarget.SOURCE, EnumOperation.FOLDER_CHANGE), this.m_sourceFolder);
+
+                // 初始化当前源文件夹列表中的文件
+                for (fIndex in files){
+                    mainWindow.webContents.sent(fmtInstrct(this.m_renderName,
+                        EnumTarget.SOURCE, EnumOperation.NEW_FILE), files[fIndex]);
+                }
+                
+                m_sourceWatcher = AddFolderWatcher(this.m_sourceFolder, EnumTarget.SOURCE);
+            }
+        })
+    }// function setSourceFolder()
+
+    // 为某个文件夹添加监控，监听创建、删除、修改事件，向对应的进程发送信息。
+    // 返回对应的fs.watcher.
+    AddFolderWatcher(folderPath, targetSourceOrDest){
+        return fs.watch(folderpath, (event, fileName)=>{
+            FileEventDispatcher(event, path.join(filePath, fileName), {
+                onCreate: (fn)=>{
+                    mainWindow.webContents.send(fmtInstrct(this.m_renderName, 
+                        EnumTarget.SOURCE, EnumOperation.NEW_FILE), fn);
+                },
+                onDelete: (fn)=>{
+                    mainWindow.webContents.send(fmtInstrct(this.m_renderName, 
+                        EnumTarget.SOURCE, EnumOperation.DELETE_FILE), fn);
+                },
+                onChange: (fn)=>{
+                    mainWindow.webContents.send(fmtInstrct(this.m_renderName, 
+                        EnumTarget.SOURCE, EnumOperation.FILE_CHANGE), fn);
+                }
             })
-            
-            // 发送单独的文件添加指令
-            for (var index in files)
-            {
-                mainWindow.webContents.send("fileDrop:addSrcSingleFile", files[index]);
-            }
-        }
-    })
+        })
+    }// function AddFolderWatcher()
+
+}
+
+let projectorSet = {};
+ipcMain.on("newProjector", (err, renderName)=>{
+    projectorSet[renderName] = new Projector("renderName");
 })
+
+// 测试用数据，用于显示触发的文件修改事件计数
+// let watchEventCount = 0;
+// prevFileWatcher = null;
+// ipcMain.on("fileDrop:newSrcFile", (e, filePath)=>{
+//     fs.readdir(filePath, (error, files)=>{
+//         if (error)
+//         {
+//             mainWindow.webContents.send("fileDrop:invalidSrcFolder");
+//         }
+//         else
+//         {
+//             // 发送文件夹添加指令。
+//             mainWindow.webContents.send("fileDrop:addSrcFolder", filePath);
+
+//             // 关闭前一次的监控文件夹。
+//             if (prevFileWatcher)
+//             {
+//                 prevFileWatcher.close();
+//                 prevFileWatcher = null;
+//             }
+
+//             prevFileWatcher = fs.watch(filePath, {recursive: true}, (event, fileName)=>{
+//                 FileEventDispatcher(event, path.join(filePath, fileName), {
+//                     onCreate: (fn)=>{
+//                         mainWindow.webContents.send("fileDrop:addSrcSingleFile", path.parse(fn).base);
+//                     },
+//                     onDelete: (fn)=>{
+//                         mainWindow.webContents.send("fileChange:deletSrcSingleFile", path.parse(fn).base);
+//                         console.log("### 文件被删了：" + fn);
+//                     },
+//                     onChange: (fn)=>{console.log("### 文件改变了：" + fn);}
+//                 }, 1000)
+//                 //console.log("计数: " + watchEventCount++ + "文件变化，类型：" + event + "  文件：" + fileName);
+//             })
+            
+//             // 发送单独的文件添加指令
+//             for (var index in files)
+//             {
+//                 mainWindow.webContents.send("fileDrop:addSrcSingleFile", files[index]);
+//             }
+//         }
+//     })
+// })
