@@ -133,8 +133,7 @@ function FileEventDispatcher(eventFromFS, fileName, callBackS, delayChangeMillis
 }
 
 class Projector{
-    constructor(renderName)
-    {
+    constructor(renderName){
         // renderName用于区分不同的Projector。
         this.m_renderName = renderName;
         this.m_sourceFolder = "";
@@ -163,17 +162,26 @@ class Projector{
     // 文件变化事件的进程通信规格
     // Render:****:[src, dest]:[folderChange, newSingleFile, deleteSingleFile]
     setSourceFolder(srcFolder){
+        // 清除上一次的源文件监控。
+        if (this.m_sourceWatcher){
+            this.m_sourceWatcher.close();
+            this.m_sourceWatcher = null;
+        }
+        // 删除之前的监控目标文件夹。
+        this.m_sourceFolder = "";
         srcFolder = path.resolve(srcFolder);
+
+        // 检查是否和目标文件夹重合。
+        if (srcFolder == this.m_destFolder){
+            mainWindow.webContents.send(fmtInstrct(this.m_renderName, 
+                EnumTarget.SOURCE, EnumOperation.INVALID_FOLDER), srcFolder + "已经作为目标文件夹被监控");
+            return;
+        }
         fs.readdir(srcFolder, (err, files)=>{
             if (err){
                 mainWindow.webContents.send(fmtInstrct(this.m_renderName, 
                     EnumTarget.SOURCE, EnumOperation.INVALID_FOLDER), srcFolder);
             } else {
-                // 清除上一次的源文件监控。
-                if (this.m_sourceWatcher){
-                    this.m_sourceWatcher.close();
-                    this.m_sourceWatcher = null;
-                }
                 // 记录新的源文件夹路径。
                 this.m_sourceFolder = srcFolder;
                 // 发送源文件夹更改信息。
@@ -192,17 +200,27 @@ class Projector{
     }// function setSourceFolder()
 
     setDestFolder(destFolder){
+        // 清除上一次的目标文件监控。
+        if (this.m_destWatcher){
+            this.m_destWatcher.close();
+            this.m_destWatcher = null;
+        }
+        // 删除之前的监控目标文件夹。
+        this.m_destFolder = "";
         destFolder = path.resolve(destFolder);
+
+        // 检查是否和源文件夹重合。
+        if (destFolder == this.m_sourceFolder){
+            mainWindow.webContents.send(fmtInstrct(this.m_renderName, 
+                EnumTarget.DESTINATION, EnumOperation.INVALID_FOLDER), destFolder + "已经作为源文件夹被监控");
+            return;
+        }
         fs.readdir(destFolder, (err, files)=>{
             if (err){
                 mainWindow.webContents.send(fmtInstrct(this.m_renderName, 
-                    EnumTarget.DESTINATION, EnumOperation.INVALID_FOLDER), destFolder);
+                    EnumTarget.DESTINATION, EnumOperation.INVALID_FOLDER), destFolder + "不是文件夹");
             } else {
-                // 清除上一次的源文件监控。
-                if (this.m_destWatcher){
-                    this.m_destWatcher.close();
-                    this.m_destWatcher = null;
-                }
+                
                 // 记录新的源文件夹路径。
                 this.m_destFolder = destFolder;
                 // 发送源文件夹更改信息。
