@@ -5,6 +5,7 @@ const url = require('url');
 const path = require('path');
 const fs = require("fs");
 const gaze = require("gaze");
+const myFs = require("./FileOperator.js")
 
 const {app, BrowserWindow, Menu, ipcMain} = electron;
 
@@ -126,8 +127,10 @@ function FileEventDispatcher(eventFromFS, fileName, callBackS, delayChangeMillis
         break;
     }
 }
+
 // 测试用数据，用于显示触发的文件修改事件计数
 let watchEventCount = 0;
+prevFileWatcher = null;
 ipcMain.on("fileDrop:newSrcFile", (e, filePath)=>{
     fs.readdir(filePath, (error, files)=>{
         if (error)
@@ -139,13 +142,25 @@ ipcMain.on("fileDrop:newSrcFile", (e, filePath)=>{
             // 发送文件夹添加指令。
             mainWindow.webContents.send("fileDrop:addSrcFolder", filePath);
 
-            fs.watch(filePath, {recursive: true}, (event, fileName)=>{
+            // 关闭前一次的监控文件夹。
+            if (prevFileWatcher)
+            {
+                prevFileWatcher.close();
+                prevFileWatcher = null;
+            }
+
+            prevFileWatcher = fs.watch(filePath, {recursive: true}, (event, fileName)=>{
                 FileEventDispatcher(event, path.join(filePath, fileName), {
-                    onCreate: (fn)=>{console.log("### 文件创建了：" + fn);},
-                    onDelete: (fn)=>{console.log("### 文件被删了：" + fn);},
+                    onCreate: (fn)=>{
+                        mainWindow.webContents.send("fileDrop:addSrcSingleFile", path.parse(fn).base);
+                    },
+                    onDelete: (fn)=>{
+                        mainWindow.webContents.send("fileChange:deletSrcSingleFile", path.parse(fn).base);
+                        console.log("### 文件被删了：" + fn);
+                    },
                     onChange: (fn)=>{console.log("### 文件改变了：" + fn);}
-                })
-                console.log("计数: " + watchEventCount++ + "文件变化，类型：" + event + "  文件：" + fileName);
+                }, 1000)
+                //console.log("计数: " + watchEventCount++ + "文件变化，类型：" + event + "  文件：" + fileName);
             })
             
             // 发送单独的文件添加指令
