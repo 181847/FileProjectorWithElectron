@@ -54,6 +54,7 @@
         const srcFolderDropField    = document.querySelector("#sourceFolderDropField");
         const srcFolderTitle        = document.querySelector("#sourceFolder");
         const srcFiles              = document.querySelector("#sourceFiles");
+        let deleteFileItem = {};
 
         document.ondragstart 
         = document.ondragenter 
@@ -80,9 +81,19 @@
             let listItem = document.createElement("li");
             listItem.appendChild(document.createTextNode(filePath));
             srcFiles.appendChild(listItem);
+            // 记录对应的源文件的一个删除函数，方便在之后的操作中删除这个文件对应的html元素。
+            deleteFileItem[filePath] = ()=>{
+                srcFiles.remove(listItem);
+            };
         })
         ipcRenderer.on('fileDrop:invalidSrcFolder', (e, srcFolderPath)=>{
             srcFolderTitle.textContent = "拖拽文件夹失败";
+        })
+        ipcRenderer.on("fileChange:deletSrcSingleFile", (e, deleteFile)=>{
+            // 根据文件名查找对应的清除函数，并执行。
+            deleteFileItem[deleteFile]();
+            // 删除 清除函数。
+            delete deleteFileItem[deleteFile];
         })
 
     </script>
