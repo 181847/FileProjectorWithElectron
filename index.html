@@ -54,7 +54,12 @@
         const srcFolderDropField    = document.querySelector("#sourceFolderDropField");
         const srcFolderTitle        = document.querySelector("#sourceFolder");
         const srcFiles              = document.querySelector("#sourceFiles");
-        let deleteFileItem = {};
+        let deleteFileItem          = {};
+        
+        let RenderFormater          = require("./IpcInstrctFormator.js").RenderFormater;
+        const EnumTarget            = RenderFormater.EnumTarget;
+        const EnumOperation         = RenderFormater.EnumOperation;
+        const fmtInstrct            = RenderFormater.fmt;
 
         document.ondragstart 
         = document.ondragenter 
@@ -83,7 +88,7 @@
             srcFiles.appendChild(listItem);
             // 记录对应的源文件的一个删除函数，方便在之后的操作中删除这个文件对应的html元素。
             deleteFileItem[filePath] = ()=>{
-                srcFiles.remove(listItem);
+                listItem.remove();
             };
         })
         ipcRenderer.on('fileDrop:invalidSrcFolder', (e, srcFolderPath)=>{
