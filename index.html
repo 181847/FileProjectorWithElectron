@@ -83,6 +83,14 @@
             }
         } 
 
+        function DelaySetBackground(element, colorChange, delayMS, colorRecover){
+            element.style.background = colorChange;
+            setTimeout(()=>{
+                // 防止在一段时间之后element被删除。
+                element && (element.style.background = colorRecover);
+            }, delayMS);
+        }
+
         // 文件夹更新事件监听
         function SetFolderChange(folderTitleId, fileListId, sourceOrDest){
             let titleElement = document.querySelector(folderTitleId);
@@ -127,6 +135,7 @@
                     // 记录ListItem。
                     fileListItemSet[newFile] = listItem;
 
+                    DelaySetBackground(listItem, "#00aa00", 1000, "white");
                 }
             )
 
@@ -134,12 +143,17 @@
             ipcRenderer.on(fmtInstrct(g_renderName, sourceOrDest, EnumOperation.DELETE_FILE),
                 (e, deletedFile)=>{
                     let accessItem = fileListItemSet[deletedFile];
-                    // 如果之前有同名的选项但是没有被删除，那么删除它。
-                    accessItem && accessItem.remove();
                     // 删除哈希记录。
                     delete fileListItemSet[deletedFile];
+                    accessItem && (accessItem.style.background = "#ff0000");
+                    setTimeout(()=>{
+                        // 如果之前有同名的选项但是没有被删除，那么删除它。
+                        accessItem && accessItem.remove();
+                    }, 1000);
                 }
             )
+
+            // 文件更新事件（修改）监听
         }
 
         // 源文件夹放置事件注册
