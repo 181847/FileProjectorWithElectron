@@ -5,7 +5,7 @@
         FileProjector
     </title>
     <style>
-        #tdDropField{
+        .tdDropField{
             width: 50%;
             height: 50px;
             background: orange;
@@ -21,12 +21,12 @@
     </style>
 </head>
 <body>
-    <table class="mainTable">
+    <table class="mainTable" name="FirstRender">
         <tr>
-            <td id="tdDropField">
-                <p id="sourceFolderDropField">拖拽源文件夹至此</p>
+            <td class="tdDropField" id="sourceFolderDropField">
+                <p>拖拽源文件夹至此</p>
             </td>
-            <td id="tdDropField">
+            <td class="tdDropField" id="destFolderDropField">
                 <p>拖拽目标文件夹至此</p>
             </td>
         </tr>
@@ -50,13 +50,14 @@
     <!--添加脚本-->
     <script>
         const electron              = require("electron");
+        const path                  = require("path");
         const {ipcRenderer}         = electron;
         const srcFolderDropField    = document.querySelector("#sourceFolderDropField");
         const srcFolderTitle        = document.querySelector("#sourceFolder");
         const srcFiles              = document.querySelector("#sourceFiles");
-        let deleteFileItem          = {};
+        let   deleteFileItem          = {};
         
-        let RenderFormater          = require("./IpcInstrctFormator.js").RenderFormater;
+        let   RenderFormater          = require("./IpcInstrctFormator.js").RenderFormater;
         const EnumTarget            = RenderFormater.EnumTarget;
         const EnumOperation         = RenderFormater.EnumOperation;
         const fmtInstrct            = RenderFormater.fmt;
@@ -70,36 +71,87 @@
             ev.preventDefault(); 
             ev.stopPropagation();
         };
-        srcFolderDropField.ondrop = (ev)=>{            
-            // 检查是否为文件夹
-            let srcPath = ev.dataTransfer.files[0].path;
-            
-            ipcRenderer.send("fileDrop:newSrcFile", srcPath);
-        };
 
-        ipcRenderer.on("fileDrop:addSrcFolder", (e, srcFolderPath)=>{
-            srcFolderTitle.textContent = srcFolderPath;
-            // 清空所有子文件。
-            srcFiles.innerHTML = "";
-        })
-        ipcRenderer.on("fileDrop:addSrcSingleFile", (e, filePath)=>{
-            let listItem = document.createElement("li");
-            listItem.appendChild(document.createTextNode(filePath));
-            srcFiles.appendChild(listItem);
-            // 记录对应的源文件的一个删除函数，方便在之后的操作中删除这个文件对应的html元素。
-            deleteFileItem[filePath] = ()=>{
-                listItem.remove();
-            };
-        })
-        ipcRenderer.on('fileDrop:invalidSrcFolder', (e, srcFolderPath)=>{
-            srcFolderTitle.textContent = "拖拽文件夹失败";
-        })
-        ipcRenderer.on("fileChange:deletSrcSingleFile", (e, deleteFile)=>{
-            // 根据文件名查找对应的清除函数，并执行。
-            deleteFileItem[deleteFile]();
-            // 删除 清除函数。
-            delete deleteFileItem[deleteFile];
-        })
+        const g_renderName = "FirstRender"
+        ipcRenderer.send("newProjector", g_renderName);
+
+        // 为特定的元素设定放置事件
+        function SetDrop(theElementID, sourceOrDest){
+            let dropFiled = document.querySelector(theElementID);
+            dropFiled.ondrop = (ev)=>{
+                let theFilePath = ev.dataTransfer.files[0].path;
+                ipcRenderer.send(fmtInstrct(g_renderName, 
+                    sourceOrDest, EnumOperation.FOLDER_CHANGE),
+                    theFilePath);
+            }
+        } 
+
+        // 文件夹更新事件监听
+        function SetFolderChange(folderTitleId, fileListId, sourceOrDest){
+            let titleElement = document.querySelector(folderTitleId);
+            let fileList = document.querySelector(fileListId);
+            ipcRenderer.on(fmtInstrct(g_renderName, sourceOrDest, EnumOperation.FOLDER_CHANGE), 
+                (e, folderPath)=>{
+                    titleElement.textContent = folderPath;
+                    // 清空所有子文件。
+                    fileList.innerHTML = "";
+                }
+            )
+        }
+
+        // 源文件夹放置事件注册
+        SetDrop("#sourceFolderDropField", EnumTarget.SOURCE);
+        // 目标文件夹放置事件注册
+        SetDrop("#destFolderDropField", EnumTarget.DESTINATION);
+
+        SetFolderChange("#sourceFolder", "#sourceFiles", EnumTarget.SOURCE);
+        SetFolderChange("#destFolder", "#destFiles", EnumTarget.DESTINATION);
+
+        // srcFolderDropField.ondrop = (ev)=>{
+        //     // 向主线程发起源文件夹更新事件。
+        //     let srcPath = ev.dataTransfer.files[0].path;
+        //     ipcRenderer.send(fmtInstrct(g_renderName, 
+        //         EnumTarget.SOURCE, EnumOperation.FOLDER_CHANGE), srcPath);
+        // };
+
+        // // 源文件夹更新事件监听
+        // ipcRenderer.on(fmtInstrct(g_renderName, EnumTarget.SOURCE, EnumOperation.FOLDER_CHANGE), 
+        //     (e, srcFolderPath)=>{
+        //         srcFolderTitle.textContent = srcFolderPath;
+        //         // 清空所有子文件。
+        //         srcFiles.innerHTML = "";
+        //     }
+        // )
+
+        // 原文件夹更新失败事件监听
+        ipcRenderer.on(fmtInstrct(g_renderName, EnumTarget.SOURCE, EnumOperation.INVALID_FOLDER), 
+            (ev)=>{
+                srcFolderTitle.textContent = "设置源文件夹失败！";
+            }
+        )
+
+        // 源文件更新事件（增加）监听。
+        ipcRenderer.on(fmtInstrct(g_renderName, EnumTarget.SOURCE, EnumOperation.NEW_FILE),
+            (e, newFile)=>{
+                let listItem = document.createElement("li");
+                listItem.appendChild(document.createTextNode(path.parse(newFile).base));
+                srcFiles.appendChild(listItem);
+                // 记录对应的源文件的一个删除函数，方便在之后的操作中删除这个文件对应的html元素。
+                deleteFileItem[newFile] = ()=>{
+                    listItem.remove();
+                };
+            }
+        )
+
+        // 源文件更新事件（删除）监听。
+        ipcRenderer.on(fmtInstrct(g_renderName, EnumTarget.SOURCE, EnumOperation.DELETE_FILE),
+            (e, deletedFile)=>{
+                // 执行对应的删除函数。
+                deleteFileItem[deletedFile]();
+                // 删除 删除函数。
+                delete deleteFileItem[deletedFile];
+            }
+        )
 
     </script>
 </body>
