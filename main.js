@@ -159,6 +159,16 @@ class Projector{
         return this.m_renderName;
     }// function getRenderName()
 
+    // 用于构建一个简单的用于向render传递文件信息的类，relativeFile表示相对于监控文件夹的文件路径。
+    // parentFile 则是被监控的文件夹。
+    buildFileDescForRender(relativeFile, parentFile){
+        return {
+            relative: relativeFile, 
+            parent:   parentFile,
+            absolute: path.join(relativeFile, parentFile)
+        };
+    }
+
     // 文件变化事件的进程通信规格
     // Render:****:[src, dest]:[folderChange, newSingleFile, deleteSingleFile]
     setSourceFolder(srcFolder){
@@ -191,7 +201,8 @@ class Projector{
                 // 初始化当前源文件夹列表中的文件
                 for (var fIndex in files){
                     mainWindow.webContents.send(fmtInstrct(this.m_renderName,
-                        EnumTarget.SOURCE, EnumOperation.NEW_FILE), path.join(srcFolder, files[fIndex]));
+                        EnumTarget.SOURCE, EnumOperation.NEW_FILE), 
+                        this.buildFileDescForRender(files[fIndex], srcFolder));
                 }
                 
                 this.m_sourceWatcher = this.AddFolderWatcher(this.m_sourceFolder, EnumTarget.SOURCE);
@@ -232,7 +243,7 @@ class Projector{
                 for (var fIndex in files){
                     mainWindow.webContents.send(fmtInstrct(this.m_renderName,
                         EnumTarget.DESTINATION, EnumOperation.NEW_FILE), 
-                        path.join(destFolder, files[fIndex]));
+                        this.buildFileDescForRender(files[fIndex], destFolder));
                 }
                 
                 this.m_destWatcher = this.AddFolderWatcher(this.m_destFolder, EnumTarget.DESTINATION);
@@ -243,23 +254,45 @@ class Projector{
     // 为某个文件夹添加监控，监听创建、删除、修改事件，向对应的进程发送信息。
     // 返回对应的fs.watcher.
     AddFolderWatcher(folderPath, targetSourceOrDest){
-        return fs.watch(folderPath, (event, fileName)=>{
-            FileEventDispatcher(event, path.join(folderPath, fileName), {
-                onCreate: (fn)=>{
-                    mainWindow.webContents.send(fmtInstrct(this.m_renderName, 
-                        targetSourceOrDest, EnumOperation.NEW_FILE), fn);
-                },
-                onDelete: (fn)=>{
-                    mainWindow.webContents.send(fmtInstrct(this.m_renderName, 
-                        targetSourceOrDest, EnumOperation.DELETE_FILE), fn);
-                },
-                onChange: (fn)=>{
-                    mainWindow.webContents.send(fmtInstrct(this.m_renderName, 
-                        targetSourceOrDest, EnumOperation.FILE_CHANGE), fn);
-                }
-            })
-        })
+        return fs.watch(folderPath, {recursive: true}, (event, fileName)=>{
+            this.doWhenFile(path.join(folderPath, fileName), ()=>{
+                console.log("文件改动: " + event + " 路径:" + fileName);
+                // 注意下面的fn是绝对路径，但是同时会传递一个监控文件夹的路径，方便求解相对路径。
+                FileEventDispatcher(event, path.join(folderPath, fileName), {
+                    // callBackFunctions 
+                    onCreate: (fn)=>{
+                        mainWindow.webContents.send(fmtInstrct(this.m_renderName, 
+                            targetSourceOrDest, EnumOperation.NEW_FILE), 
+                            this.buildFileDescForRender(fileName, folderPath));
+                    },
+                    onDelete: (fn)=>{
+                        mainWindow.webContents.send(fmtInstrct(this.m_renderName, 
+                            targetSourceOrDest, EnumOperation.DELETE_FILE), 
+                            this.buildFileDescForRender(fileName, folderPath));
+                    },
+                    onChange: (fn)=>{
+                        mainWindow.webContents.send(fmtInstrct(this.m_renderName, 
+                            targetSourceOrDest, EnumOperation.FILE_CHANGE), 
+                            this.buildFileDescForRender(fileName, folderPath));
+                    }
+                })// FileEventDispatcher()
+            })// this.doWhenFile
+        })// return fs.watch
     }// function AddFolderWatcher()
+
+    // 检查路径是否为文件，如果为文件就执行callWhenFile，否则执行callNotFile，
+    // 将fs.stat()回调中的error和state对象作为回调的参数。
+    // callNotFile可以为空。
+    doWhenFile(filePath, callWhenFile, callNotFile){
+        fs.stat(filePath, (err, state)=>{
+            if ( ! err && state.isFile()){
+                callWhenFile(err, state);
+            } else {
+                callNotFile && callNotFile(err, state);
+            }
+        })
+
+    }
 
 }
 

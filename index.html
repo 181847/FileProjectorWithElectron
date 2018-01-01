@@ -131,17 +131,17 @@
 
             // 文件更新事件（增加）监听。
             ipcRenderer.on(fmtInstrct(g_renderName, sourceOrDest, EnumOperation.NEW_FILE),
-                (e, newFile)=>{
+                (e, newFileDesc)=>{
                     let listItem = document.createElement("li");
-                    listItem.appendChild(document.createTextNode(path.parse(newFile).base));
+                    listItem.appendChild(document.createTextNode(newFileDesc.relative));
                     fileList.appendChild(listItem);
 
                     // 记录对应的源文件的一个删除函数，方便在之后的操作中删除这个文件对应的html元素。
-                    let accessItem = fileListItemSet[newFile];
+                    let accessItem = fileListItemSet[newFileDesc.absolute];
                     // 如果之前有同名的选项但是没有被删除，那么删除它。
                     accessItem && accessItem.remove();
                     // 记录ListItem。
-                    fileListItemSet[newFile] = listItem;
+                    fileListItemSet[newFileDesc.absolute] = listItem;
 
                     DelaySetBackground(listItem, "#00aa00", 1000, listItem.style.background);
                 }
@@ -149,10 +149,10 @@
 
             // 文件更新事件（删除）监听。
             ipcRenderer.on(fmtInstrct(g_renderName, sourceOrDest, EnumOperation.DELETE_FILE),
-                (e, deletedFile)=>{
-                    let accessItem = fileListItemSet[deletedFile];
+                (e, deletedFileDesc)=>{
+                    let accessItem = fileListItemSet[deletedFileDesc.absolute];
                     // 删除哈希记录。
-                    delete fileListItemSet[deletedFile];
+                    delete fileListItemSet[deletedFileDesc.absolute];
                     accessItem && (accessItem.style.background = "#ff0000");
                     setTimeout(()=>{
                         // 防止在延迟的过程中，accessItem被其他进程删除。
@@ -163,8 +163,8 @@
 
             // 文件更新事件（修改）监听
             ipcRenderer.on(fmtInstrct(g_renderName, sourceOrDest, EnumOperation.FILE_CHANGE),
-                (e, modifiedFile)=>{
-                    let accessItem = fileListItemSet[modifiedFile];
+                (e, modifiedFileDesc)=>{
+                    let accessItem = fileListItemSet[modifiedFileDesc.absolute];
                     DelaySetBackground(accessItem, "#ff8800", 1000, accessItem.style.background);
                 }
             )
