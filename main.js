@@ -283,15 +283,17 @@ class Projector{
     // 检查路径是否为文件，如果为文件就执行callWhenFile，否则执行callNotFile，
     // 将fs.stat()回调中的error和state对象作为回调的参数。
     // callNotFile可以为空。
-    doWhenFile(filePath, callWhenFile, callNotFile){
+    // judgeDeleteAsFile 用来设置是否判定被删除的对象是文件（因为被删除之后无法通过fs来区分，
+    // 所以需要手动置顶，默认假定被删除的对象都是文件）
+    doWhenFile(filePath, callWhenFile, callNotFile = undefined, judgeDeleteAsFile = true){
         fs.stat(filePath, (err, state)=>{
-            if ( ! err && state.isFile()){
+            if ((judgeDeleteAsFile && err) 
+                || (state && state.isFile())){
                 callWhenFile(err, state);
             } else {
                 callNotFile && callNotFile(err, state);
             }
         })
-
     }
 
 }
