@@ -17,6 +17,9 @@ let mainWindow;
 
 process.env.NODE_ENV = "development"
 
+// 显示node的版本。
+console.log(process.version);
+
 app.on('ready', ()=>{
     // create 
     mainWindow = new BrowserWindow({
@@ -142,6 +145,8 @@ class Projector{
         this.m_sourceWatcher = null;
         this.m_destWatcher = null;
 
+        this.m_syncOp = {syncDelete: false, syncOverWrite: false};
+
         ipcMain.on(fmtInstrct(this.m_renderName, EnumTarget.SOURCE, EnumOperation.FOLDER_CHANGE), 
             (err, srcFolderPath)=>{
                 this.setSourceFolder(srcFolderPath);
@@ -151,6 +156,12 @@ class Projector{
         ipcMain.on(fmtInstrct(this.m_renderName, EnumTarget.DESTINATION, EnumOperation.FOLDER_CHANGE),
             (ev, destFolderPath)=>{
                 this.setDestFolder(destFolderPath);
+            }
+        )
+
+        ipcMain.on(fmtInstrct(this.m_renderName, EnumTarget.RENDER, EnumOperation.UPDATE_SYNC_OP), 
+            (ev, syncOp)=>{
+                this.m_syncOp = syncOp;
             }
         )
     }
@@ -165,7 +176,7 @@ class Projector{
         return {
             relative: relativeFile, 
             parent:   parentFile,
-            absolute: path.join(relativeFile, parentFile)
+            absolute: path.join(parentFile, relativeFile)
         };
     }
 
@@ -256,24 +267,33 @@ class Projector{
     AddFolderWatcher(folderPath, targetSourceOrDest){
         return fs.watch(folderPath, {recursive: true}, (event, fileName)=>{
             this.doWhenFile(path.join(folderPath, fileName), ()=>{
-                console.log("文件改动: " + event + " 路径:" + fileName);
+                let fileDesc = this.buildFileDescForRender(fileName, folderPath);
                 // 注意下面的fn是绝对路径，但是同时会传递一个监控文件夹的路径，方便求解相对路径。
                 FileEventDispatcher(event, path.join(folderPath, fileName), {
                     // callBackFunctions 
                     onCreate: (fn)=>{
                         mainWindow.webContents.send(fmtInstrct(this.m_renderName, 
                             targetSourceOrDest, EnumOperation.NEW_FILE), 
-                            this.buildFileDescForRender(fileName, folderPath));
+                            fileDesc);
+                        // 只有源更新的时候才执行Update函数。
+                        targetSourceOrDest == EnumTarget.SOURCE && 
+                        this.UpdateFile(fileDesc, EnumOperation.NEW_FILE, this.m_syncOp);
                     },
                     onDelete: (fn)=>{
                         mainWindow.webContents.send(fmtInstrct(this.m_renderName, 
                             targetSourceOrDest, EnumOperation.DELETE_FILE), 
-                            this.buildFileDescForRender(fileName, folderPath));
+                            fileDesc);
+                        // 只有源更新的时候才执行Update函数。
+                        targetSourceOrDest == EnumTarget.SOURCE && 
+                        this.UpdateFile(fileDesc, EnumOperation.DELETE_FILE, this.m_syncOp);
                     },
                     onChange: (fn)=>{
                         mainWindow.webContents.send(fmtInstrct(this.m_renderName, 
                             targetSourceOrDest, EnumOperation.FILE_CHANGE), 
-                            this.buildFileDescForRender(fileName, folderPath));
+                            fileDesc);
+                        // 只有源更新的时候才执行Update函数。
+                        targetSourceOrDest == EnumTarget.SOURCE && 
+                        this.UpdateFile(fileDesc, EnumOperation.FILE_CHANGE, this.m_syncOp);
                     }
                 })// FileEventDispatcher()
             })// this.doWhenFile
@@ -294,6 +314,44 @@ class Projector{
                 callNotFile && callNotFile(err, state);
             }
         })
+    }
+
+    // 当文件发生更新的时候，将对应的文件更新复制到另一边。
+    // syncOp:
+    //      syncDelete: 如果operation为删除操作，则删除目标文件夹中的同名文件，否则不删除。
+    //      syncOverWrite: 如果发生更新或者创建操作，是否覆盖目标文件夹中的同名文件。
+    UpdateFile(srcFileDesc, operation, syncOp = {syncDelete: false, syncOverWrite: false}){
+        if (this.m_destFolder == ""){
+            // 目标文件夹尚未设置，不进行任何更新。
+            return;
+        } else {
+            let destFile = path.join(this.m_destFolder, srcFileDesc.relative);
+            switch(operation){
+                case EnumOperation.DELETE_FILE:
+                // 删除操作。
+                if (syncOp.syncDelete){
+                    fs.stat(destFile, (err, state)=>{
+                        // 只删除文件。
+                        if ( ! err && state.isFile()){
+                            fs.unlink(destFile, (err)=>{
+                                if (err) {
+                                    console.log(err);
+                                }
+                            })
+                        }
+                    })
+                }
+                break;
+
+                case EnumOperation.FILE_CHANGE:
+                case EnumOperation.NEW_FILE:
+                    myFs.copy(srcFileDesc.absolute, destFile, (err)=>{
+                            console.log(err);
+                        }, 
+                        syncOp.syncOverWrite);
+                break;
+            }
+        }
     }
 
 }

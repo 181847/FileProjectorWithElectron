@@ -1,11 +1,33 @@
 exportModule = {};
-let fs = require("fs");
-let path = require("path")
+const fs = require("fs");
+const path = require("path")
 
-let CopyState = {
+const CopyState = {
     None: 0,
     SrcIsFile: 1 << 1,
     SrcIsFolder: 1 << 2
+}
+
+function replaceCopy(src, dest, callBack, overWrite = false){
+    fs.stat(src, (err)=>{
+        if (err){
+            callBack(err);
+        } else {
+            fs.stat(dest, (err)=>{
+                if ( err || overWrite){
+                    let inputStream = fs.createReadStream(src);
+                    let outputStream = fs.createWriteStream(dest);
+                    inputStream.pipe(outputStream, {end: false});
+                    inputStream.on("end", ()=>{
+                        outputStream.end();
+                        callBack();
+                    });
+                } else {
+                    callBack(new Error("can't overwrite the exist file." + dest));
+                }
+            })
+        }
+    })
 }
 
 // 递归创建文件夹，请注意不要在里面包含文件名称
@@ -41,12 +63,12 @@ function RecursiveCreateDir(destPath, callBack)
 
 // 如果src是文件夹，那么dest也必须是文件夹，将src文件夹中的内容复制到dest文件夹中。
 // 如果src是文件，那么dest也必须是文件。
-function MyCopy(src, dest, option, callBack){
+function MyCopy(src, dest, callBack, overWrite = false){
     fs.stat(src, (err, state)=>{
         if (err)
         {
             // 错误，源文件、文件夹必须存在。
-            callBack("srcUnexist", src);
+            callBack(err);
         } else if (state.isFile()) {
             // 假设目标文件所处的文件夹不存在，递归创建那些文件夹。
             destPathObj = path.parse(dest);
@@ -54,12 +76,12 @@ function MyCopy(src, dest, option, callBack){
                 if (err){
                     throw err;
                 }else{
-                    fs.copyFile(src, dest, option, (err)=>{
+                    replaceCopy(src, dest, (err)=>{
                         if (err)
                         {
                             callBack(err);
                         }
-                    })
+                    }, overWrite)
                 }
             });
         }

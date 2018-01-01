@@ -47,6 +47,10 @@
             </td>
         </tr>
     </table>
+    <div>
+        <input type="checkbox" id="checkSyncOverWrite" value="覆盖文档" checked="true">覆盖文档</input>
+        <input type="checkbox" id="checkSyncDelete" value="同步删除" checked="false">同步删除</input>
+    </div>
     <!--添加脚本-->
     <script>
         const electron              = require("electron");
@@ -58,6 +62,8 @@
         const EnumTarget            = RenderFormater.EnumTarget;
         const EnumOperation         = RenderFormater.EnumOperation;
         const fmtInstrct            = RenderFormater.fmt;
+        let   syncOvWCheckBox        = document.querySelector("#checkSyncOverWrite");
+        let   syncDelCheckBox        = document.querySelector("#checkSyncDelete");        
 
         // 一些关于颜色的设定
         const g_folderSuccessColor = "#ffffff";
@@ -79,6 +85,12 @@
 
         const g_renderName = "FirstRender"
         ipcRenderer.send("newProjector", g_renderName);
+
+        function buildSyncOp(){
+            return  {syncDelete: syncDelCheckBox.checked, syncOverWrite: syncOvWCheckBox.checked};
+        }
+        ipcRenderer.send(fmtInstrct(g_renderName, 
+            EnumTarget.RENDER, EnumOperation.UPDATE_SYNC_OP), buildSyncOp());
 
         // 向主线程发送文件夹更改消息。
         function SendFolderChangeToMainProcess(sourceOrDest, filePath){
@@ -138,20 +150,26 @@
                 }
             )
 
+            // 为列表添加新文件记录，返回添加的listItem对象。
+            function AddNewFileItem(newFileDesc){
+                let listItem = document.createElement("li");
+                listItem.appendChild(document.createTextNode(newFileDesc.relative));
+                fileList.appendChild(listItem);
+
+                // 记录对应的源文件的一个删除函数，方便在之后的操作中删除这个文件对应的html元素。
+                let accessItem = fileListItemSet[newFileDesc.absolute];
+                // 如果之前有同名的选项但是没有被删除，那么删除它。
+                accessItem && accessItem.remove();
+                // 记录ListItem。
+                fileListItemSet[newFileDesc.absolute] = listItem;
+
+                return listItem;
+            }
+
             // 文件更新事件（增加）监听。
             ipcRenderer.on(fmtInstrct(g_renderName, sourceOrDest, EnumOperation.NEW_FILE),
                 (e, newFileDesc)=>{
-                    let listItem = document.createElement("li");
-                    listItem.appendChild(document.createTextNode(newFileDesc.relative));
-                    fileList.appendChild(listItem);
-
-                    // 记录对应的源文件的一个删除函数，方便在之后的操作中删除这个文件对应的html元素。
-                    let accessItem = fileListItemSet[newFileDesc.absolute];
-                    // 如果之前有同名的选项但是没有被删除，那么删除它。
-                    accessItem && accessItem.remove();
-                    // 记录ListItem。
-                    fileListItemSet[newFileDesc.absolute] = listItem;
-
+                    let listItem = AddNewFileItem(newFileDesc);
                     DelaySetBackground(listItem, g_createColor, 1000, g_normalColor);
                 }
             )
@@ -174,6 +192,9 @@
             ipcRenderer.on(fmtInstrct(g_renderName, sourceOrDest, EnumOperation.FILE_CHANGE),
                 (e, modifiedFileDesc)=>{
                     let accessItem = fileListItemSet[modifiedFileDesc.absolute];
+                    // 有的深层的文件不会出现在第一次的初始化中，而是在后来的更新中才出现，
+                    // 所以当发生修改事件，判断是否有相应的文件记录，如果没有，就要添加上来。
+                    accessItem = accessItem || AddNewFileItem(modifiedFileDesc);
                     DelaySetBackground(accessItem, g_modifyColor, 1000, g_normalColor);
                 }
             )
