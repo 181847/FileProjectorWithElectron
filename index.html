@@ -59,6 +59,14 @@
         const EnumOperation         = RenderFormater.EnumOperation;
         const fmtInstrct            = RenderFormater.fmt;
 
+        // 一些关于颜色的设定
+        const g_folderSuccessColor = "#ffffff";
+        const g_folderInvalidColor = "#ffff00";
+        const g_createColor = "green";
+        const g_deleteColor = "red";
+        const g_modifyColor = "#ff8800";
+        const g_normalColor = "white";
+
         document.ondragstart 
         = document.ondragenter 
         = document.ondragover 
@@ -88,6 +96,7 @@
             }
         } 
 
+        // 延时设置背景颜色。
         function DelaySetBackground(element, colorChange, delayMS, colorRecover){
             element.style.background = colorChange;
             setTimeout(()=>{
@@ -122,7 +131,7 @@
             // 文件夹更新失败事件监听
             ipcRenderer.on(fmtInstrct(g_renderName, sourceOrDest, EnumOperation.INVALID_FOLDER), 
                 (ev, reason)=>{
-                    DelaySetBackground(titleElement, "#ffff00", 1000, titleElement.style.background);
+                    DelaySetBackground(titleElement, g_folderInvalidColor, 1000, g_folderSuccessColor);
                     titleElement.textContent = "设置文件夹失败！" + reason;
                     // 清空所有子文件。
                     fileList.innerHTML = "";
@@ -143,7 +152,7 @@
                     // 记录ListItem。
                     fileListItemSet[newFileDesc.absolute] = listItem;
 
-                    DelaySetBackground(listItem, "#00aa00", 1000, listItem.style.background);
+                    DelaySetBackground(listItem, g_createColor, 1000, g_normalColor);
                 }
             )
 
@@ -153,7 +162,7 @@
                     let accessItem = fileListItemSet[deletedFileDesc.absolute];
                     // 删除哈希记录。
                     delete fileListItemSet[deletedFileDesc.absolute];
-                    accessItem && (accessItem.style.background = "#ff0000");
+                    accessItem && (accessItem.style.background = g_deleteColor);
                     setTimeout(()=>{
                         // 防止在延迟的过程中，accessItem被其他进程删除。
                         accessItem && accessItem.remove();
@@ -165,7 +174,7 @@
             ipcRenderer.on(fmtInstrct(g_renderName, sourceOrDest, EnumOperation.FILE_CHANGE),
                 (e, modifiedFileDesc)=>{
                     let accessItem = fileListItemSet[modifiedFileDesc.absolute];
-                    DelaySetBackground(accessItem, "#ff8800", 1000, accessItem.style.background);
+                    DelaySetBackground(accessItem, g_modifyColor, 1000, g_normalColor);
                 }
             )
         }
