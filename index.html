@@ -86,11 +86,21 @@
         const g_renderName = "FirstRender"
         ipcRenderer.send("newProjector", g_renderName);
 
+        // 构建当前页面的选项配置信息，并返回，用于SyncOptionChange函数。
         function buildSyncOp(){
             return  {syncDelete: syncDelCheckBox.checked, syncOverWrite: syncOvWCheckBox.checked};
         }
-        ipcRenderer.send(fmtInstrct(g_renderName, 
-            EnumTarget.RENDER, EnumOperation.UPDATE_SYNC_OP), buildSyncOp());
+
+        // 向主线程发送同步配置更改的消息。
+        function SyncOptionChange(){
+            ipcRenderer.send(fmtInstrct(g_renderName, 
+                EnumTarget.RENDER, EnumOperation.UPDATE_SYNC_OP), buildSyncOp());
+        }
+
+        syncDelCheckBox.onclick = SyncOptionChange;
+        syncOvWCheckBox.onclick = SyncOptionChange;
+        // 第一次运行时就配置一遍同步设置。
+        SyncOptionChange();
 
         // 向主线程发送文件夹更改消息。
         function SendFolderChangeToMainProcess(sourceOrDest, filePath){
